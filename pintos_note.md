@@ -1,6 +1,6 @@
 #                  Pintos 笔记
 
-
+ 
 
 ## Part one. Alarm Clock
 
@@ -11,10 +11,6 @@
 ### 目标
 
 让它避免忙等待
-
-### 参考
-
-[Pintos-斯坦福大学操作系统Project详解](https://blog.csdn.net/denghuang8508/article/details/101357600?ops_request_misc=%257B%2522request%255Fid%2522%253A%2522160502078219195264764271%2522%252C%2522scm%2522%253A%252220140713.130102334..%2522%257D&request_id=160502078219195264764271&biz_id=0&utm_medium=distribute.pc_search_result.none-task-blog-2~all~top_click~default-1-101357600.first_rank_ecpm_v3_pc_rank_v2&utm_term=pintos&spm=1018.2118.3001.4449)
 
 ## 模块
 
@@ -63,7 +59,80 @@ void timer_sleep(int64_t ticks){
 
 第一行 `start` 通过调用函数`timer_ticks()` 获取了进程起始时间。
 
-第三行跳出while的条件：在x个时间片中一直进行`thread_yield` 直到进行了x个时间片。
+第三行跳出while的条件：在x个时间片中一直进行`thread_yield` 直到进行了x个时间片。(x取决于测试文件分配多少个给到这个函数)。
 
-#####  
+**`thread_yield()`:** 
+
+```C
+void
+thread_yield (void) 
+{
+  struct thread *cur = thread_current ();
+  enum intr_level old_level;
+  ASSERT (!intr_context ());//断言当前是软中断
+  old_level = intr_disable ();//保证这个操作是原子操作
+  if (cur != idle_thread) 
+    list_push_back (&ready_list, &cur->elem);
+  cur->status = THREAD_READY;
+  schedule ();
+  intr_set_level (old_level);
+}
+```
+
+ 
+
+第一行调用`thread_current()` ,`thread_current()` 再调用`running_thread()` 。`running_thread()` 先通过汇编语言将存储线程的栈指针赋值给`esp` ，但是目标`struct thread` 永远在最开头，所要为了保险，要调用`pg_round_down(esp)` 定位到最开头的位置，并将这个位置赋值给`cur` 。
+
+第五行及往下:判断当前线程是不是空闲线程，如果不是，就push进就绪队列中。把当前线程的状态改成`THREAD_READY` 。最后调用`schedule()` 。
+
+**`schedule()` **：
+
+```c
+schedule (void) 
+{
+  struct thread *cur = running_thread ();//将当前线程的“首地址”赋值给cur
+  struct thread *next = next_thread_to_run ();
+  struct thread *prev = NULL;
+
+  ASSERT (intr_get_level () == INTR_OFF);
+  ASSERT (cur->status != THREAD_RUNNING);
+  ASSERT (is_thread (next));
+
+  if (cur != next)
+    prev = switch_threads (cur, next);
+  thread_schedule_tail (prev);
+}
+```
+
+`next` 通过调用函数`next_thread_to_run` 得到一个就绪队列中第一个线程的指针。(如果这个队列是一个空队列，就会得到`idle_thread` )。
+
+接下来三个断言：当前线程是不可被中断的&&当前线程不在运行（运行完了？）&&下个线程不是空。
+
+如果下一个线程和当前线程不同，就进行`switch_threads()` ,进行线程间的切换。在`switch_threads()` 这个函数实现中，用到了汇编语言。在切换的时候保留“ebx,ebp,esi,edi"这四个寄存器。
+
+**总结:**  `schedule`先把当前线程丢到就绪队列，然后把线程切换如果下一个线程和当前线程不一样的话。
+
+最后一行：
+
+`thread_schedule_tail(prev)` :先获得当前线程cur,并把状态改成running，然后把时间片清零。然后更新页目录表并且更新任务现场信息（TSS）。然后进行判断，如果当前进程是一个没用的进程，就清空资源。
+
+***总结`thread_yield()`:***   把当前线程扔到就绪队列里，然后重新进行调度，如过就绪队列为空那么就不会切换线程，当前线程继续执行，否则就切换到下一个线程。
+
+### 总结timer_sleep()函数
+
+功能是不断的把当前进程放到就绪队列里，然后重新进行调度，如果就绪队列有东西就会切换到下一个线程。
+
+问题：就绪队列的下一个线程就是他自己。所以形成了一个大循环就是当前线程不断切到自己身上。这样系统就会不让当前线程执行它该有的操作，以此来达到“sleep”的效果。
+
+## 解决方案
+
+
+
+
+
+
+
+
+
+
 
