@@ -1,0 +1,7 @@
+export PATH=$PATH:/home/student/pintos/src/utils:/home/student/bochs/bin
+
+cd pintos/src/threads/build
+
+sudo make check
+
+pintos -v -- run alarm-multiple
