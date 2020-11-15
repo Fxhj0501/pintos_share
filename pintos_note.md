@@ -1,10 +1,10 @@
 #                  Pintos 笔记
 
-<<<<<<< HEAD
+
 
 =======
  
->>>>>>> 319e716... alarm finished
+
 
 ## Part one. Alarm Clock
 
@@ -16,12 +16,15 @@
 
 让它避免忙等待
 
-<<<<<<< HEAD
 ## 模块
 
 ### 1. timer_sleep
 =======
 ### 模块
+
+=======
+### 模块
+
 
 #### 1. timer_sleep
 
@@ -154,7 +157,10 @@ schedule (void)
 实现优先级捐赠这一操作。优先级捐赠有可能会是多个线程捐给一个线程，也有可能是出现嵌套捐赠。为了防止无限嵌套，也可以自己设置最多嵌套层数。上面说的“捐赠”只针对于`locks`。需要修改的两个函数是`thread_set_priority()` 和 `thread_get_priority()` 。
 
 
+<<<<<<< HEAD
 >>>>>>> 319e716... alarm finished
+=======
+>>>>>>> 1650837... first mission finished
 
 
 
