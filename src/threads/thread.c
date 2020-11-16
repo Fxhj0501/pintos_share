@@ -198,10 +198,12 @@ thread_create (const char *name, int priority,
   sf = alloc_frame (t, sizeof *sf);
   sf->eip = switch_entry;
   sf->ebp = 0;
-intr_set_level(old_level);
+  intr_set_level(old_level);
   /* Add to run queue. */
   thread_unblock (t);
-
+  if(thread_current()->priority<priority){
+    thread_yield();
+  }
   return tid;
 }
 
@@ -339,6 +341,7 @@ void
 thread_set_priority (int new_priority) 
 {
   thread_current ()->priority = new_priority;
+  thread_yield();
 }
 
 /* Returns the current thread's priority. */
