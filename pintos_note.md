@@ -1,4 +1,4 @@
-#                  Pintos 笔记
+#                  					Pintos 笔记
 
  
 
@@ -144,11 +144,45 @@ schedule (void)
 
 实现优先级捐赠这一操作。优先级捐赠有可能会是多个线程捐给一个线程，也有可能是出现嵌套捐赠。为了防止无限嵌套，也可以自己设置最多嵌套层数。上面说的“捐赠”只针对于`locks`。需要修改的两个函数是`thread_set_priority()` 和 `thread_get_priority()` 。
 
+**任务总结：** 将FCFS变为抢占式优先级调度。
+
+### 模块
+
+#### 1.`list_insert_ordered()`
+
+在阅读代码的时候，我们发现原本代码中将线程放入就绪队列的函数是`list_push_back()` ，这么做的问题是直接把线程放入队尾了，没有体现出线程的优先级。我们还发现有一个函数可以在将线程放入队列时体现函数的优先级，那就是`list_insert_ordered()` 这个函数。于是我们将原本在`thread.c` 中的`list_push_back` 都替换成 `list_insert_ordered()` 。
+
+```c
+/* Inserts ELEM in the proper position in LIST, which must be
+   sorted according to LESS given auxiliary data AUX.
+   Runs in O(n) average case in the number of elements in LIST. */
+Void list_insert_ordered (struct list *list, struct list_elem *elem,
+                     list_less_func *less, void *aux)
+{
+  struct list_elem *e;
+ 
+  ASSERT (list != NULL);
+  ASSERT (elem != NULL);
+  ASSERT (less != NULL);
+ 
+  for (e = list_begin (list); e != list_end (list); e = list_next (e))
+    if (less (elem, e, aux))
+      break;
+  return list_insert (e, elem);
+}
 
 
+```
 
+注意到这个函数在给线程进行入队操作的时候需要一个`list_less_fuc()* less` 这个参数，于是需要根据两个线程的优先级进行比较大小，然后选择应该插入到队列的位置。
 
+由于我们想让每个线程都能在进入就绪队列的时候就已经是按照优先级顺序整理好的，而且在这个任务中所有的调度都是抢占式的，所以为了保证就绪队列的有序性，我们想要达到一个当一个线程优先级发生变化的时候，就重新调整其在就绪队列中的位置的效果。在阅读完代码后，我们发现有两个地方可以进行改变线程的优先级，一个是`thread_set_priority()` 函数，另一个地方是`thread_create()` 。所以我们在这两个函数中都加入`thread_yield()` 这个函数。这样就能在优先级发生变化的时候直接重新排列就绪队列中的线程，实现抢断式优先级调度了。
 
+#### 2.优先级反转问题
+
+优先级反转是指一个低优先级的任务持有一个被高优先级任务所需要的共享资源。高优先任务由于因资源缺乏而处于受阻状态，一直等到低优先级任务释放资源为止。而低优先级获得的CPU时间少，如果此时有优先级处于两者之间的任务，并且不需要那个共享资源，则该中优先级的任务反而超过这两个任务而获得CPU时间。如果高优先级等待资源时不是阻塞等待，而是忙循环，则可能永远无法获得资源，因为此时低优先级进程无法与高优先级进程争夺CPU时间，从而无法执行，进而无法释放资源，造成的后果就是高优先级任务无法获得资源而继续推进。
+
+这个问题的解决方案就是优先级捐赠。先将高优先级赋给低优先级，在低优先级释放后，原本高优先级线程就可以继续执行了。
 
 
 
