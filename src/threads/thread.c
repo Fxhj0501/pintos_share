@@ -182,7 +182,7 @@ thread_create (const char *name, int priority,
   /* Initialize thread. */
   init_thread (t, name, priority);
   tid = t->tid = allocate_tid ();
-  t->ticks_blocked = 0;
+  t->tickstowake = 0;
   old_level = intr_disable();
   /* Stack frame for kernel_thread(). */
   kf = alloc_frame (t, sizeof *kf);
@@ -590,10 +590,10 @@ allocate_tid (void)
    Used by switch.S, which can't figure it out on its own. */
 uint32_t thread_stack_ofs = offsetof (struct thread, stack);
 
-void blocked_thread_check(struct thread *t,void *aux UNUSED){
-  if(t->status == THREAD_BLOCKED && t->ticks_blocked >0){
-    t->ticks_blocked--;
-    if(t->ticks_blocked == 0){
+void check_wake(struct thread *t,void *aux UNUSED){
+  if(t->status == THREAD_BLOCKED && t->tickstowake >0){
+    t->tickstowake--;
+    if(t->tickstowake == 0){
       thread_unblock(t);
     }
   }
