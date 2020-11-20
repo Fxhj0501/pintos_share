@@ -89,7 +89,10 @@ struct thread
     uint8_t *stack;                     /* Saved stack pointer. */
     int priority;                       /* Priority. */
     struct list_elem allelem;           /* List element for all threads list. */
-    int64_t ticks_blocked;
+    int64_t ticks_blocked;              //记录需要多久被唤醒
+    int inital_priority;                //记录初始的优先级以便于恢复
+    struct thread *be_donated;          //指针指向那个被自己捐赠的线程
+    struct list hold_locks;             //记录哪些锁是被当前线程获取的
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */
 
