@@ -340,8 +340,18 @@ thread_foreach (thread_action_func *func, void *aux)
 void
 thread_set_priority (int new_priority) 
 {
-  thread_current ()->priority = new_priority;
+  enum intr_level old_level;
+  old_level = intr_disable();
+  struct thread *current_thread = thread_current();
+  if(current_thread->priority == current_thread->inital_priority){
+    current_thread->priority = new_priority;
+  }else if(new_priority > current_thread->priority){
+    current_thread->priority = new_priority;
+  }
+  current_thread->inital_priority = new_priority;
+  //thread_current ()->priority = new_priority;
   thread_yield();
+  intr_set_level(old_level);
 }
 
 /* Returns the current thread's priority. */
@@ -468,6 +478,9 @@ init_thread (struct thread *t, const char *name, int priority)
   strlcpy (t->name, name, sizeof t->name);
   t->stack = (uint8_t *) t + PGSIZE;
   t->priority = priority;
+  t->inital_priority = priority;
+  list_init(&t->hold_locks);
+  t->be_donated = NULL;
   t->magic = THREAD_MAGIC;
 
   old_level = intr_disable ();

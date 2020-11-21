@@ -199,12 +199,18 @@ lock_acquire (struct lock *lock)
   ASSERT (lock != NULL);
   ASSERT (!intr_context ());
   ASSERT (!lock_held_by_current_thread (lock));
-  // struct thread * current_thread = thread_current();
-  // if(lock_holder!=NULL){
-  //   current_thread->waiting_for_lock = lock;
-  // }
+  struct thread *current_thread = thread_current();
+  if(lock->holder!=NULL && current_thread->priority > lock->holder->priority){
+    current_thread->be_donated = lock->holder;
+    while(current_thread->be_donated !=NULL){
+      current_thread->be_donated->priority = current_thread->priority;
+      current_thread = current_thread->be_donated;
+    }
+  }
+
   sema_down (&lock->semaphore);
   lock->holder = thread_current ();
+  list_push_back(&thread_current()->hold_locks,&lock->elem);
 }
 
 /* Tries to acquires LOCK and returns true if successful or false
@@ -222,8 +228,11 @@ lock_try_acquire (struct lock *lock)
   ASSERT (!lock_held_by_current_thread (lock));
 
   success = sema_try_down (&lock->semaphore);
-  if (success)
+  if (success){
     lock->holder = thread_current ();
+    list_push_back(&thread_current()->hold_locks,&lock->elem);
+  }
+    
   return success;
 }
 
@@ -237,8 +246,29 @@ lock_release (struct lock *lock)
 {
   ASSERT (lock != NULL);
   ASSERT (lock_held_by_current_thread (lock));
-
+  struct thread *current_thread = thread_current();
+  struct list_elem *temp;
+  int cur_priority = current_thread->inital_priority;
+  for(temp = list_begin(&current_thread->hold_locks);temp !=list_end(&current_thread->hold_locks);temp = list_next(temp)){
+    struct lock *temp_lock = list_entry(temp,struct lock,elem);
+    if(temp_lock == lock){
+      continue;
+    }
+    struct list *waiters = &temp_lock->semaphore.waiters;
+    if(list_size(waiters)!=0){
+      int p = list_entry(list_front(waiters),struct thread,elem)->priority;
+      if(p>cur_priority)
+        cur_priority = p;
+    }
+  }
+  list_remove(&lock->elem);
+  if(!list_empty(&lock->semaphore.waiters)){
+    list_entry(list_front(&lock->semaphore.waiters),struct thread,elem)->be_donated = NULL;
+  }
   lock->holder = NULL;
+  if(!thread_mlfqs){
+    current_thread->priority = cur_priority;
+  }
   sema_up (&lock->semaphore);
 }
 
