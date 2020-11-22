@@ -144,9 +144,15 @@ schedule (void)
 
 实现优先级捐赠这一操作。优先级捐赠有可能会是多个线程捐给一个线程，也有可能是出现嵌套捐赠。为了防止无限嵌套，也可以自己设置最多嵌套层数。上面说的“捐赠”只针对于`locks`。需要修改的两个函数是`thread_set_priority()` 和 `thread_get_priority()` 。
 
+### 解决方案
 
+#### 1.将FCFS队列替换为优先级队列
 
+先将`ready_list` 和`waiting_list` 的排序方式换成优先级的方式，即将`list_push_back` 换成`list_insert_ordered` ，为了配合`list_insert_ordered` 的使用，要自己创建比较两个线程之间优先级的函数，该函数是`bool` 型的。且每次优先级发生改变了以后，都要把线程重新插入到队列中去，即调用`thread_yield` 函数。注意`thread` 会出现在两个队列中，分别是`waiters` 以及`ready_list` 中。所以确保这两个队列都是按照优先级排序的并且调出线程时是按照优先级调出即可。
 
+#### 2.优先级捐赠
+
+由于考虑到线程有可能被捐赠优先级，所以给线程添加一个`inital_priority` 属性，以保留线程原始的优先级。一个线程有可能会拥有很多个锁，因此需要一个队列来存储这些锁以便释放时可以找到这些锁，因此加入一个`hold_locks` 这个队列。因此为了能将锁放入这个队列，在`lock` 结构体中添加类型为`list_elem` 的属性`elem` 。最后还要添加一个指向被当前线程捐赠线程的属性`donate_thread` ，这个属性是用来在嵌套捐赠优先级的时候，能够将锁的拥有者以及被锁的拥有者捐赠过的线程这条链上的所有线程的优先级都提升到当前线程的优先级以便当前线程能取得锁。(上面这段话感觉不能很恰当描述。举个如同官方档案里面说的，H等M，M等L，假如当前线程是H，那么就可以根据`donate_thread` 将自己的优先级捐赠给M，再通过M的`donate_thread` 将H自己的优先级捐赠给L。)因此`lock_acquire()` 中，就可以通过判断是否要捐赠优先级来通过`donate_thread` 来嵌套捐赠优先级同时获得锁。在释放锁的时候，如果当前线程被其他等待当前线程释放锁的线程捐赠，那么就找这些等待者中最大优先级赋值给当前线程。如果没有等待的线程或者这些线程的优先级都没有当前线程的`inital_priority` 大，那么就使`priority = intial_priority` 即可。并且在`lock_release` 中还要将`lock_holder` 设为`NULL` ，`sema_up(&lock->semaphore)` ，这样才算真正的释放锁。并且也要把当前线程的`donate_thread` 设为`NULL` 。最后还要修改`thread_set_priority()` 。因为现在添加了`inital_priority` 这个属性，所以原本将`new_priority` 赋值给`priority` 的操作应该赋值给`inital_priority` 。如果`new_priority` 大于现在的`priority` 或者当前线程没有被捐赠过,那么就将此时的`priority` 也给变成`new_priority` 。
 
 
 
