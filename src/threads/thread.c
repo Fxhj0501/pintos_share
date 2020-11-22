@@ -201,9 +201,8 @@ thread_create (const char *name, int priority,
   intr_set_level(old_level);
   /* Add to run queue. */
   thread_unblock (t);
-  if(thread_current()->priority<priority){
-    thread_yield();
-  }
+  thread_yield();
+  
   return tid;
 }
 
@@ -480,7 +479,7 @@ init_thread (struct thread *t, const char *name, int priority)
   t->priority = priority;
   t->inital_priority = priority;
   list_init(&t->hold_locks);
-  t->be_donated = NULL;
+  t->donate_thread = NULL;
   t->magic = THREAD_MAGIC;
 
   old_level = intr_disable ();

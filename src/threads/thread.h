@@ -92,7 +92,7 @@ struct thread
     int64_t tickstowake;
     int inital_priority;                //record the inital priority
     struct list hold_locks;             //list the locks which this thread hold
-    struct thread *be_donated;          //donated to the thread
+    struct thread *donate_thread;          //donated to the thread
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */
 

@@ -201,10 +201,10 @@ lock_acquire (struct lock *lock)
   ASSERT (!lock_held_by_current_thread (lock));
   struct thread *current_thread = thread_current();
   if(lock->holder!=NULL && current_thread->priority > lock->holder->priority){
-    current_thread->be_donated = lock->holder;
-    while(current_thread->be_donated !=NULL){
-      current_thread->be_donated->priority = current_thread->priority;
-      current_thread = current_thread->be_donated;
+    current_thread->donate_thread = lock->holder;
+    while(current_thread->donate_thread !=NULL){
+      current_thread->donate_thread->priority = current_thread->priority;
+      current_thread = current_thread->donate_thread;
     }
   }
 
@@ -263,7 +263,7 @@ lock_release (struct lock *lock)
   }
   list_remove(&lock->elem);
   if(!list_empty(&lock->semaphore.waiters)){
-    list_entry(list_front(&lock->semaphore.waiters),struct thread,elem)->be_donated = NULL;
+    list_entry(list_front(&lock->semaphore.waiters),struct thread,elem)->donate_thread = NULL;
   }
   lock->holder = NULL;
   if(!thread_mlfqs){
