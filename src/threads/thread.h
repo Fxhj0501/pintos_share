@@ -90,6 +90,9 @@ struct thread
     int priority;                       /* Priority. */
     struct list_elem allelem;           /* List element for all threads list. */
     int64_t tickstowake;
+    int inital_priority;                //record the inital priority
+    struct list hold_locks;             //list the locks which this thread hold
+    struct thread *donate_thread;          //donated to the thread
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */
 
@@ -139,4 +142,5 @@ int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
 void check_wake(struct thread *t,void *aux UNUSED);
 bool thread_cmp_priority(const struct list_elem *a,const struct list_elem *b,void *aux UNUSED);
+bool thread_cmp_priority_2(const struct list_elem *a,const struct list_elem *b,void *aux UNUSED);
 #endif /* threads/thread.h */
