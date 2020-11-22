@@ -248,8 +248,9 @@ lock_release (struct lock *lock)
   ASSERT (lock_held_by_current_thread (lock));
   struct thread *current_thread = thread_current();
   struct list_elem *temp;
-  int cur_priority = current_thread->inital_priority;
-  for(temp = list_begin(&current_thread->hold_locks);temp !=list_end(&current_thread->hold_locks);temp = list_next(temp)){
+  int cur_priority = -1;
+  if(!list_empty(&current_thread->hold_locks)){
+    for(temp = list_begin(&current_thread->hold_locks);temp !=list_end(&current_thread->hold_locks);temp = list_next(temp)){
     struct lock *temp_lock = list_entry(temp,struct lock,elem);
     if(temp_lock == lock){
       continue;
@@ -261,14 +262,19 @@ lock_release (struct lock *lock)
         cur_priority = p;
     }
   }
+  }
+  if(cur_priority>current_thread->inital_priority){
+      current_thread->priority = cur_priority;
+    }
+  else{
+    current_thread->priority = current_thread->inital_priority; 
+  }
   list_remove(&lock->elem);
   if(!list_empty(&lock->semaphore.waiters)){
     list_entry(list_front(&lock->semaphore.waiters),struct thread,elem)->donate_thread = NULL;
   }
   lock->holder = NULL;
-  if(!thread_mlfqs){
-    current_thread->priority = cur_priority;
-  }
+  
   sema_up (&lock->semaphore);
 }
 
