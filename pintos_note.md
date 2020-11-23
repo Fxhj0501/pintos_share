@@ -2,9 +2,9 @@
 
  
 
-## Part one. Alarm Clock
+## Part One. Alarm Clock
 
-### 问题
+### 问题描述
 
 出现忙等待（“busy wait"),出现空转现象。这回使得这个进程一直空转来检查当前时间并调用`thread_yield()`函数直到时间片结束。
 
@@ -130,13 +130,13 @@ schedule (void)
 
 
 
-## PART TWO.Priority Scheduling
+## Part Two. Priority Scheduling
 
 ### 优先级定义
 
 在Pintos中实现优先级调度。当一个线程被添加到比当前运行的线程优先级更高的就绪列表中时，当前线程应该立即将处理器分配给新线程。类似地，当线程在等待锁、信号量或条件变量时，应该首先唤醒优先级最高的等待线程。一个线程可以在任何时候提高或降低它自己的优先级，但是降低它的优先级以使它不再具有最高优先级，必须使它立即让出CPU。线程优先级从`PRI_MIN(0)`到`PRI_MAX(63)`。线程优先级是创建线程是传给`thread_create()`的参数，默认值为`PRI_DEFAULT(31)`。
 
-### 问题
+### 问题描述
 
 高级别的线程有时候因为一些原因永远不能得到CPU的使用权。这个问题的解决方法之一就是让高优先级的线程将自己的级别“捐赠”给低优先级别的线程，然后让原本低优先级的线程运行，在占据CPU的低优先级线程完成后被释放了，就再让高优先级的线程拿回属于自己的优先级。从而最后使得高优先级的线程可以被CPU调用，执行。
 
@@ -153,6 +153,42 @@ schedule (void)
 #### 2.优先级捐赠
 
 由于考虑到线程有可能被捐赠优先级，所以给线程添加一个`inital_priority` 属性，以保留线程原始的优先级。一个线程有可能会拥有很多个锁，因此需要一个队列来存储这些锁以便释放时可以找到这些锁，因此加入一个`hold_locks` 这个队列。因此为了能将锁放入这个队列，在`lock` 结构体中添加类型为`list_elem` 的属性`elem` 。最后还要添加一个指向被当前线程捐赠线程的属性`donate_thread` ，这个属性是用来在嵌套捐赠优先级的时候，能够将锁的拥有者以及被锁的拥有者捐赠过的线程这条链上的所有线程的优先级都提升到当前线程的优先级以便当前线程能取得锁。(上面这段话感觉不能很恰当描述。举个如同官方档案里面说的，H等M，M等L，假如当前线程是H，那么就可以根据`donate_thread` 将自己的优先级捐赠给M，再通过M的`donate_thread` 将H自己的优先级捐赠给L。)因此`lock_acquire()` 中，就可以通过判断是否要捐赠优先级来通过`donate_thread` 来嵌套捐赠优先级同时获得锁。在释放锁的时候，如果当前线程被其他等待当前线程释放锁的线程捐赠，那么就找这些等待者中最大优先级赋值给当前线程。如果没有等待的线程或者这些线程的优先级都没有当前线程的`inital_priority` 大，那么就使`priority = intial_priority` 即可。并且在`lock_release` 中还要将`lock_holder` 设为`NULL` ，`sema_up(&lock->semaphore)` ，这样才算真正的释放锁。并且也要把当前线程的`donate_thread` 设为`NULL` 。最后还要修改`thread_set_priority()` 。因为现在添加了`inital_priority` 这个属性，所以原本将`new_priority` 赋值给`priority` 的操作应该赋值给`inital_priority` 。如果`new_priority` 大于现在的`priority` 或者当前线程没有被捐赠过,那么就将此时的`priority` 也给变成`new_priority` 。
+
+
+
+## Part Three. Avanced Scheduler
+
+### 问题描述
+
+因为每个线程各自功能的不同，所以对于CPU的需求也不同。有的是I/O密集型，有的是需要长时间占用CPU的，而有的是这两者的综合情况。所以我们需要设计一种调度器来调度它们。
+
+### 任务
+
+上述说的调度器有很多就绪队列，这些队列是为了让不同优先级的线程来排队的。在调度时，要先从优先级最高的非空就绪队列中调出线程。最高优先级队列中的线程是按照“循环制”排队的。
+
+```Multiple facets of the scheduler require data to be updated after a certain number oftimer ticks. In every case, these updates should occur before any ordinary kernel thread hasa chance to run, so that there is no chance that a kernel thread could see a newly increasedtimer_ticks()value but old scheduler data values。（这段话暂时没理解）```
+
+#### 介绍1.Nice值
+
+一个线程有一个类型为`int` 的nice值，正nice值最大为20，负nice值最小为-20。正nice值会使当前线程的优先级降低来让出CPU给其他线程用，负nice值会抢走别的线程使用CPU的时间。nice值为0时，不会对线程有影响。(
+
+没作用)。每个线程的初始nice值都是0。pinots提供了两个函数框架可以使用：`thread_get_nice()` 和 `thread_set_nice()` 。
+
+####  介绍2.计算优先级
+
+因为线程的优先级是0～63，所以也有64个就绪队列。在计算线程优先级时，系统会自动的对于所有线程每四个`clock tick` 一计算。计算的公式是：
+
+*Priority = PRI_MAX - (recent_cpu/4) - (nice2)* 
+
+其中的*recent_cpu* 下面会介绍。这个公式可以防止线程饥饿。
+
+#### 介绍3.计算*recent_cpu*
+
+
+
+
+
+
 
 
 
