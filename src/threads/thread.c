@@ -13,6 +13,7 @@
 #include "threads/vaddr.h"
 #ifdef USERPROG
 #include "userprog/process.h"
+#include "threads/fixed_point_op.h"
 #endif
 
 /* Random value for struct thread's `magic' member.
@@ -70,18 +71,15 @@ static void *alloc_frame (struct thread *, size_t size);
 static void schedule (void);
 void thread_schedule_tail (struct thread *prev);
 static tid_t allocate_tid (void);
-
+static fp load_avg = 0;
 /* Initializes the threading system by transforming the code
    that's currently running into a thread.  This can't work in
    general and it is possible in this case only because loader.S
    was careful to put the bottom of the stack at a page boundary.
-
    Also initializes the run queue and the tid lock.
-
    After calling this function, be sure to initialize the page
    allocator before trying to create any threads with
    thread_create().
-
    It is not safe to call thread_current() until this function
    finishes. */
 void
@@ -123,7 +121,7 @@ void
 thread_tick (void) 
 {
   struct thread *t = thread_current ();
-
+  int ticks = timer_ticks();
   /* Update statistics. */
   if (t == idle_thread)
     idle_ticks++;
@@ -137,6 +135,40 @@ thread_tick (void)
   /* Enforce preemption. */
   if (++thread_ticks >= TIME_SLICE)
     intr_yield_on_return ();
+  if(thread_mlfqs){
+    struct thread * current_thread = thread_current();
+    if(current_thread != idle_thread){
+      current_thread->recent_cpu = Add_x_and_n(current_thread->recent_cpu,1);
+    }
+    if(ticks%4 == 0){
+      struct list_elem * e;
+      for(e = list_begin(&all_list);e != list_end(&all_list);e = list_next(e)){
+        struct thread *temp = list_entry(e,struct thread,allelem);
+        //int temp_priority = Substract_n_from_x(Convert_n_to_fixed_point(PRI_MAX),Add_x_and_n(Divide_x_by_n(temp->recent_cpu,4),temp->nice*2));
+        int temp_priority = Convert_x_to_integer_nearest(Substract_y_from_x(Convert_n_to_fixed_point(PRI_MAX), Add_x_and_n(Divide_x_by_n(temp->recent_cpu, 4), (temp->nice*2))));
+        if(temp_priority < PRI_MIN){
+          temp->priority = PRI_MIN;
+        }else if(temp_priority > PRI_MAX){
+          temp->priority = PRI_MAX;
+        }else{
+          temp->priority = temp_priority;
+        }
+      }
+    }
+    if(ticks%100 == 0){
+      int ready_threads =0;
+      ready_threads += list_size(&ready_list);
+      if(current_thread != idle_thread)
+        ready_threads++;
+      load_avg = Divide_x_by_n(Add_x_and_n(Multiply_x_by_n(load_avg, 59),ready_threads), 60);
+      struct list_elem * e;
+      for(e = list_begin(&all_list);e != list_end(&all_list);e = list_next(e)){
+        struct thread *temp = list_entry(e,struct thread,allelem);
+        //temp->recent_cpu = Add_x_and_y(Multiply_x_by_y(Divide_x_by_y(Multiply_x_by_n(load_avg,2),Add_x_and_y(Multiply_x_by_n(load_avg,2),1)),temp->recent_cpu),temp->nice);
+        temp->recent_cpu = Add_x_and_n(Multiply_x_by_y(Divide_x_by_y(Multiply_x_by_n(load_avg, 2), Add_x_and_n(Multiply_x_by_n(load_avg, 2), 1)), temp->recent_cpu), temp->nice);
+      }
+    }
+  }
 }
 
 /* Prints thread statistics. */
@@ -151,14 +183,12 @@ thread_print_stats (void)
    PRIORITY, which executes FUNCTION passing AUX as the argument,
    and adds it to the ready queue.  Returns the thread identifier
    for the new thread, or TID_ERROR if creation fails.
-
    If thread_start() has been called, then the new thread may be
    scheduled before thread_create() returns.  It could even exit
    before thread_create() returns.  Contrariwise, the original
    thread may run for any amount of time before the new thread is
    scheduled.  Use a semaphore or some other form of
    synchronization if you need to ensure ordering.
-
    The code provided sets the new thread's `priority' member to
    PRIORITY, but no actual priority scheduling is implemented.
    Priority scheduling is the goal of Problem 1-3. */
@@ -208,7 +238,6 @@ thread_create (const char *name, int priority,
 
 /* Puts the current thread to sleep.  It will not be scheduled
    again until awoken by thread_unblock().
-
    This function must be called with interrupts turned off.  It
    is usually a better idea to use one of the synchronization
    primitives in synch.h. */
@@ -225,7 +254,6 @@ thread_block (void)
 /* Transitions a blocked thread T to the ready-to-run state.
    This is an error if T is not blocked.  (Use thread_yield() to
    make the running thread ready.)
-
    This function does not preempt the running thread.  This can
    be important: if the caller had disabled interrupts itself,
    it may expect that it can atomically unblock a thread and
@@ -362,7 +390,19 @@ thread_get_priority (void)
 void
 thread_set_nice (int nice UNUSED) 
 {
-  /* Not yet implemented. */
+  enum intr_level old_level = intr_disable ();
+  struct thread * current_thread = thread_current();
+  current_thread->nice = nice;
+  int temp_priority = Convert_x_to_integer_nearest(Substract_y_from_x(Convert_n_to_fixed_point(PRI_MAX), Add_x_and_n(Divide_x_by_n(current_thread->recent_cpu, 4), (current_thread->nice*2))));
+  if(temp_priority < PRI_MIN){
+    current_thread->priority = PRI_MIN;
+  }else if(temp_priority > PRI_MAX){
+    current_thread->priority = PRI_MAX;
+  }else{
+    current_thread->priority = temp_priority;
+  }
+  thread_yield();
+  intr_set_level (old_level);
 }
 
 /* Returns the current thread's nice value. */
@@ -370,7 +410,7 @@ int
 thread_get_nice (void) 
 {
   /* Not yet implemented. */
-  return 0;
+  return thread_current()->nice;
 }
 
 /* Returns 100 times the system load average. */
@@ -378,7 +418,7 @@ int
 thread_get_load_avg (void) 
 {
   /* Not yet implemented. */
-  return 0;
+  return Convert_x_to_integer_nearest(Multiply_x_by_n(load_avg,100));
 }
 
 /* Returns 100 times the current thread's recent_cpu value. */
@@ -386,11 +426,10 @@ int
 thread_get_recent_cpu (void) 
 {
   /* Not yet implemented. */
-  return 0;
+  return Convert_x_to_integer_nearest(Multiply_x_by_n(thread_current()->recent_cpu,100));
 }
 
 /* Idle thread.  Executes when no other thread is ready to run.
-
    The idle thread is initially put on the ready list by
    thread_start().  It will be scheduled once initially, at which
    point it initializes idle_thread, "up"s the semaphore passed
@@ -412,7 +451,6 @@ idle (void *idle_started_ UNUSED)
       thread_block ();
 
       /* Re-enable interrupts and wait for the next one.
-
          The `sti' instruction disables interrupts until the
          completion of the next instruction, so these two
          instructions are executed atomically.  This atomicity is
@@ -420,7 +458,6 @@ idle (void *idle_started_ UNUSED)
          between re-enabling interrupts and waiting for the next
          one to occur, wasting as much as one clock tick worth of
          time.
-
          See [IA32-v2a] "HLT", [IA32-v2b] "STI", and [IA32-v3a]
          7.11.1 "HLT Instruction". */
       asm volatile ("sti; hlt" : : : "memory");
@@ -478,6 +515,8 @@ init_thread (struct thread *t, const char *name, int priority)
   t->inital_priority = priority;
   list_init(&t->hold_locks);
   t->donate_thread = NULL;
+  t->recent_cpu = 0;
+  t->nice = 0;
   t->magic = THREAD_MAGIC;
 
   old_level = intr_disable ();
@@ -515,18 +554,15 @@ next_thread_to_run (void)
 
 /* Completes a thread switch by activating the new thread's page
    tables, and, if the previous thread is dying, destroying it.
-
    At this function's invocation, we just switched from thread
    PREV, the new thread is already running, and interrupts are
    still disabled.  This function is normally invoked by
    thread_schedule() as its final action before returning, but
    the first time a thread is scheduled it is called by
    switch_entry() (see switch.S).
-
    It's not safe to call printf() until the thread switch is
    complete.  In practice that means that printf()s should be
    added at the end of the function.
-
    After this function and its caller returns, the thread switch
    is complete. */
 void
@@ -563,7 +599,6 @@ thread_schedule_tail (struct thread *prev)
    the running process's state must have been changed from
    running to some other state.  This function finds another
    thread to run and switches to it.
-
    It's not safe to call printf() until thread_schedule_tail()
    has completed. */
 static void

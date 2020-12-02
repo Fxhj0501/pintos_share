@@ -200,7 +200,7 @@ lock_acquire (struct lock *lock)
   ASSERT (!intr_context ());
   ASSERT (!lock_held_by_current_thread (lock));
   struct thread *current_thread = thread_current();
-  if(lock->holder!=NULL && current_thread->priority > lock->holder->priority){
+  if(lock->holder!=NULL && current_thread->priority > lock->holder->priority && !thread_mlfqs){
     current_thread->donate_thread = lock->holder;
     while(current_thread->donate_thread !=NULL){
       current_thread->donate_thread->priority = current_thread->priority;
