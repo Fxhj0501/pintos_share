@@ -141,4 +141,7 @@ int thread_get_load_avg (void);
 thread_action_func *check_wake(struct thread *t,void *aux UNUSED);
 list_less_func * thread_cmp_priority(const struct list_elem *a,const struct list_elem *b,void *aux UNUSED);
 list_less_func * thread_cmp_priority_2(const struct list_elem *a,const struct list_elem *b,void *aux UNUSED);
+void thread_foreachsleep();
+list_less_func *thread_cmp_tickstowake(const struct list_elem *a,const struct list_elem *b,void *aux UNUSED);
+void push_into_sleep_list(struct thread *current_thread );
 #endif /* threads/thread.h */

@@ -29,6 +29,8 @@ static struct list ready_list;
    when they are first scheduled and removed when they exit. */
 static struct list all_list;
 
+static struct list sleep_list;
+
 /* Idle thread. */
 static struct thread *idle_thread;
 
@@ -90,6 +92,7 @@ thread_init (void)
   lock_init (&tid_lock);
   list_init (&ready_list);
   list_init (&all_list);
+  list_init(&sleep_list);
 
   /* Set up a thread structure for the running thread. */
   initial_thread = running_thread ();
@@ -650,4 +653,37 @@ list_less_func *thread_cmp_priority(const struct list_elem *a,const struct list_
 
 list_less_func * thread_cmp_priority_2(const struct list_elem *a,const struct list_elem *b,void *aux UNUSED){
   return  list_entry(a,struct thread,elem)->priority < list_entry(b,struct thread,elem)->priority;
+}
+
+list_less_func *thread_cmp_tickstowake(const struct list_elem *a,const struct list_elem *b,void *aux UNUSED){
+  return list_entry(a,struct thread,elem)->tickstowake < list_entry(b,struct thread,elem)->tickstowake;
+}
+
+void
+thread_foreachsleep ()
+{
+  enum intr_level old_level;
+  struct list_elem *e;
+  struct list_elem *next_e;
+  if(list_empty(&sleep_list))
+    return ;
+  
+  for(e = list_begin(&sleep_list);e!=list_end(&sleep_list);)
+    {
+      struct thread *t = list_entry (e, struct thread, elem);
+      next_e = list_next(e);
+      if(t->tickstowake > timer_ticks()){
+        break;
+      }
+      old_level = intr_disable();
+        list_remove(e);
+        t->tickstowake = 0;
+        thread_unblock(t);
+      intr_set_level(old_level);
+      e = next_e;
+    }
+}
+
+void push_into_sleep_list(struct thread *current_thread ){
+  list_insert_ordered(&sleep_list,&current_thread->elem,thread_cmp_tickstowake,NULL);
 }

@@ -94,14 +94,14 @@ timer_sleep (int64_t ticks)
   if(ticks<=0){
     return ;
   }
-  ASSERT (intr_get_level () == INTR_ON);
-  //Ensure that the following operations are atomic
   enum intr_level old_level = intr_disable();
   struct thread *current_thread = thread_current();//get current thread
-  current_thread->tickstowake = ticks;
+  ASSERT(current_thread->status == THREAD_RUNNING);
+  current_thread->tickstowake = ticks + timer_ticks();
+  //Ensure that the following operations are atomi
+  push_into_sleep_list(current_thread);
   thread_block();
   intr_set_level(old_level);
-
   // while (timer_elapsed (start) < ticks) 
   //   thread_yield ();
 }
@@ -177,11 +177,9 @@ timer_print_stats (void)
 static void
 timer_interrupt (struct intr_frame *args UNUSED)
 { 
-  
   ticks++;
   thread_tick ();
-  
-  thread_foreach(check_wake,NULL);
+  thread_foreachsleep();
 }
 
 /* Returns true if LOOPS iterations waits for more than one timer
